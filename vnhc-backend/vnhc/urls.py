@@ -1,0 +1,12 @@
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+urlpatterns = [
+    # All API routes are delegated to the 'api' app
+    path('api/', include('api.urls')),
+]
+
+# Serve uploaded media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
