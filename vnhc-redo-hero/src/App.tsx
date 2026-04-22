@@ -5,7 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth.tsx";
 import { initCsrfToken } from "@/lib/api";
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
+import { useAuth } from "@/hooks/useAuth";
 import Index from "./pages/Index.tsx";
 import AboutUs from "./pages/AboutUs.tsx";
 import Contact from "./pages/Contact.tsx";
@@ -25,6 +26,20 @@ import TrainingPrograms from "./pages/training/TrainingPrograms.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
+
+const ProtectedAdminRoute = ({ children }: { children: ReactNode }) => {
+  const { admin, loading } = useAuth();
+
+  if (loading) {
+    return <div className="min-h-screen grid place-items-center text-muted-foreground">Loading...</div>;
+  }
+
+  if (!admin) {
+    return <Navigate to="/admin/login" replace />;
+  }
+
+  return <>{children}</>;
+};
 
 const AppContent = () => {
   useEffect(() => {
@@ -54,10 +69,10 @@ const AppContent = () => {
           {/* Admin Routes */}
           <Route path="/admin" element={<Navigate to="/admin/login" replace />} />
           <Route path="/admin/login" element={<AdminLogin />} />
-          <Route path="/admin/products" element={<AdminProducts />} />
-          <Route path="/admin/gallery" element={<AdminGallery />} />
-          <Route path="/admin/inquiries" element={<AdminInquiries />} />
-          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/products" element={<ProtectedAdminRoute><AdminProducts /></ProtectedAdminRoute>} />
+          <Route path="/admin/gallery" element={<ProtectedAdminRoute><AdminGallery /></ProtectedAdminRoute>} />
+          <Route path="/admin/inquiries" element={<ProtectedAdminRoute><AdminInquiries /></ProtectedAdminRoute>} />
+          <Route path="/admin/users" element={<ProtectedAdminRoute><AdminUsers /></ProtectedAdminRoute>} />
           
           <Route path="*" element={<NotFound />} />
         </Routes>

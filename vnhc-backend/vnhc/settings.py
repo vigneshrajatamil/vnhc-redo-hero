@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -14,6 +15,9 @@ def env_list(name, default):
 SECRET_KEY = os.environ.get('SECRET_KEY', 'fallback-secret-key-change-me')
 
 DEBUG = os.environ.get('DEBUG', 'False') == 'True'
+
+if not DEBUG and SECRET_KEY == 'fallback-secret-key-change-me':
+    raise ImproperlyConfigured('Set a strong SECRET_KEY in production.')
 
 ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', 'localhost,127.0.0.1')
 
@@ -128,6 +132,7 @@ MEDIA_ROOT = BASE_DIR / os.environ.get('MEDIA_ROOT', 'media')
 
 USE_X_FORWARDED_HOST = True
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_REFERRER_POLICY = 'same-origin'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

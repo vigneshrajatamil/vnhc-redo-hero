@@ -1,5 +1,7 @@
 from django.core.management.base import BaseCommand
+from django.core.exceptions import ValidationError
 from api.models import AdminUser
+from api.security import validate_admin_password
 
 
 class Command(BaseCommand):
@@ -8,15 +10,17 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--username', default='admin',    help='Admin username (default: admin)')
         parser.add_argument('--email',    default='admin@vnhc.com', help='Admin email')
-        parser.add_argument('--password', default='Admin@1234',     help='Admin password (min 8 chars)')
+        parser.add_argument('--password', default='ChangeMeNow@123!', help='Admin password')
 
     def handle(self, *args, **options):
         username = options['username']
         email    = options['email']
         password = options['password']
 
-        if len(password) < 8:
-            self.stderr.write(self.style.ERROR('Password must be at least 8 characters.'))
+        try:
+            validate_admin_password(password, username=username, email=email)
+        except ValidationError as exc:
+            self.stderr.write(self.style.ERROR(' '.join(exc.messages)))
             return
 
         if AdminUser.objects.filter(username=username).exists():

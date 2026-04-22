@@ -4,11 +4,13 @@ import re
 import time
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.http import JsonResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_http_methods
 
 from api.models import AdminUser, Product, GalleryItem, ContactMessage
+from api.security import validate_admin_password
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -50,12 +52,14 @@ def _rate_limit_ok(ip: str) -> bool:
     return True
 
 
+@require_http_methods(["GET"])
 @ensure_csrf_cookie
 def csrf_view(request):
     """GET /api/auth/csrf/  — sets CSRF cookie so the frontend can read it."""
     return JsonResponse({'detail': 'CSRF cookie set.'})
 
 
+@require_http_methods(["GET"])
 def auth_me(request):
     """GET /api/auth/me/  — returns current admin or null."""
     admin_id = request.session.get('admin_id')
@@ -69,11 +73,9 @@ def auth_me(request):
         return JsonResponse({'admin': None})
 
 
+@require_http_methods(["POST"])
 def auth_login(request):
     """POST /api/auth/login/"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed.'}, status=405)
-
     ip = request.META.get('HTTP_X_FORWARDED_FOR', request.META.get('REMOTE_ADDR', ''))
     if not _rate_limit_ok(ip):
         return JsonResponse({'error': 'Too many login attempts. Try again in 5 minutes.'}, status=429)
@@ -104,11 +106,10 @@ def auth_login(request):
     return JsonResponse({'id': str(admin.id), 'username': admin.username, 'email': admin.email})
 
 
+@require_http_methods(["POST"])
 @require_admin
 def auth_logout(request):
     """POST /api/auth/logout/"""
-    if request.method != 'POST':
-        return JsonResponse({'error': 'Method not allowed.'}, status=405)
     request.session.flush()
     return JsonResponse({'detail': 'Logged out successfully.'})
 
@@ -137,12 +138,14 @@ def _product_dict(p: Product, request) -> dict:
     }
 
 
+@require_http_methods(["GET"])
 def products_list(request):
     """GET /api/products/"""
     products = Product.objects.all()
     return JsonResponse({'products': [_product_dict(p, request) for p in products]})
 
 
+@require_http_methods(["POST"])
 @require_admin
 def products_create(request):
     """POST /api/products/  — multipart/form-data"""
@@ -181,6 +184,7 @@ def products_create(request):
     return JsonResponse(_product_dict(product, request), status=201)
 
 
+@require_http_methods(["PUT", "PATCH"])
 @require_admin
 def products_update(request, pk):
     """PUT/PATCH /api/products/<pk>/  — supports multipart or JSON"""
@@ -224,6 +228,7 @@ def products_update(request, pk):
     return JsonResponse(_product_dict(product, request))
 
 
+@require_http_methods(["DELETE"])
 @require_admin
 def products_delete(request, pk):
     """DELETE /api/products/<pk>/"""
@@ -258,12 +263,14 @@ def _gallery_dict(item: GalleryItem, request) -> dict:
     }
 
 
+@require_http_methods(["GET"])
 def gallery_list(request):
     """GET /api/gallery/"""
     items = GalleryItem.objects.all()
     return JsonResponse({'images': [_gallery_dict(i, request) for i in items]})
 
 
+@require_http_methods(["POST"])
 @require_admin
 def gallery_upload(request):
     """POST /api/gallery/  — multipart/form-data"""
@@ -285,6 +292,7 @@ def gallery_upload(request):
     return JsonResponse(_gallery_dict(item, request), status=201)
 
 
+@require_http_methods(["DELETE"])
 @require_admin
 def gallery_delete(request, pk):
     """DELETE /api/gallery/<pk>/"""
@@ -318,6 +326,7 @@ def _msg_dict(m: ContactMessage) -> dict:
     }
 
 
+@require_http_methods(["POST"])
 def contact_submit(request):
     """POST /api/contact/  — public"""
     try:
@@ -344,6 +353,7 @@ def contact_submit(request):
     return JsonResponse({'detail': "Message received. We'll get back to you soon."}, status=201)
 
 
+@require_http_methods(["GET"])
 @require_admin
 def contact_list(request):
     """GET /api/contact/  — admin only"""
@@ -351,6 +361,7 @@ def contact_list(request):
     return JsonResponse({'messages': [_msg_dict(m) for m in msgs]})
 
 
+@require_http_methods(["PATCH"])
 @require_admin
 def contact_mark_read(request, pk):
     """PATCH /api/contact/<pk>/read/"""
@@ -363,6 +374,7 @@ def contact_mark_read(request, pk):
     return JsonResponse(_msg_dict(msg))
 
 
+@require_http_methods(["DELETE"])
 @require_admin
 def contact_delete(request, pk):
     """DELETE /api/contact/<pk>/"""
@@ -388,6 +400,7 @@ def _admin_user_dict(u: AdminUser) -> dict:
     }
 
 
+@require_http_methods(["GET"])
 @require_admin
 def admin_users_list(request):
     """GET /api/admin-users/"""
@@ -395,6 +408,7 @@ def admin_users_list(request):
     return JsonResponse({'users': [_admin_user_dict(u) for u in users]})
 
 
+@require_http_methods(["POST"])
 @require_admin
 def admin_users_create(request):
     """POST /api/admin-users/"""
@@ -409,8 +423,10 @@ def admin_users_create(request):
 
     if not username or not email or not password:
         return JsonResponse({'error': 'username, email, and password required.'}, status=400)
-    if len(password) < 8:
-        return JsonResponse({'error': 'Password must be at least 8 characters.'}, status=400)
+    try:
+        validate_admin_password(password, username=username, email=email)
+    except ValidationError as exc:
+        return JsonResponse({'error': ' '.join(exc.messages)}, status=400)
     if AdminUser.objects.filter(username=username).exists():
         return JsonResponse({'error': 'Username already taken.'}, status=400)
     if AdminUser.objects.filter(email=email).exists():
@@ -422,6 +438,7 @@ def admin_users_create(request):
     return JsonResponse(_admin_user_dict(user), status=201)
 
 
+@require_http_methods(["DELETE"])
 @require_admin
 def admin_users_delete(request, pk):
     """DELETE /api/admin-users/<pk>/"""
@@ -435,6 +452,7 @@ def admin_users_delete(request, pk):
     return JsonResponse({'detail': 'Admin user deleted.'})
 
 
+@require_http_methods(["PATCH"])
 @require_admin
 def admin_users_toggle(request, pk):
     """PATCH /api/admin-users/<pk>/toggle/  — activate / deactivate"""
