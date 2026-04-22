@@ -10,7 +10,7 @@
 Frontend file: `vnhc-redo-hero/.env`
 
 ```env
-VITE_API_URL=http://127.0.0.1:8181
+VITE_API_URL=
 ```
 
 Backend file: `vnhc-backend/.env`
